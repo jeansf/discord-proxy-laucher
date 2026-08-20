@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"sort"
@@ -74,9 +75,6 @@ const (
 	IDYES            = 6
 	IDNO             = 7
 
-	TH32CS_SNAPPROCESS = 0x00000002
-	PROCESS_TERMINATE  = 0x0001
-
 	HKEY_CURRENT_USER  = 0x80000001
 	HKEY_LOCAL_MACHINE = 0x80000002
 	KEY_READ           = 0x20019
@@ -95,6 +93,7 @@ const (
 
 	CREATE_NEW_PROCESS_GROUP = 0x00000200
 	DETACHED_PROCESS         = 0x00000008
+	CREATE_NO_WINDOW         = 0x08000000
 )
 
 // Discord Palette Colors (BGR format for Win32 COLORREF)
@@ -146,15 +145,11 @@ var (
 	procGetClientRect        = modUser32.NewProc("GetClientRect")
 	procSetProcessDPIAware   = modUser32.NewProc("SetProcessDPIAware")
 	procAdjustWindowRectEx   = modUser32.NewProc("AdjustWindowRectEx")
+	procFindWindowW          = modUser32.NewProc("FindWindowW")
 
-	procGetModuleHandleW         = modKernel32.NewProc("GetModuleHandleW")
-	procCreateProcessW           = modKernel32.NewProc("CreateProcessW")
-	procCloseHandle              = modKernel32.NewProc("CloseHandle")
-	procCreateToolhelp32Snapshot = modKernel32.NewProc("CreateToolhelp32Snapshot")
-	procProcess32FirstW          = modKernel32.NewProc("Process32FirstW")
-	procProcess32NextW           = modKernel32.NewProc("Process32NextW")
-	procOpenProcess              = modKernel32.NewProc("OpenProcess")
-	procTerminateProcess         = modKernel32.NewProc("TerminateProcess")
+	procGetModuleHandleW = modKernel32.NewProc("GetModuleHandleW")
+	procCreateProcessW   = modKernel32.NewProc("CreateProcessW")
+	procCloseHandle      = modKernel32.NewProc("CloseHandle")
 
 	procCreateFontW          = modGdi32.NewProc("CreateFontW")
 	procCreateSolidBrush     = modGdi32.NewProc("CreateSolidBrush")
@@ -252,19 +247,6 @@ type PROCESS_INFORMATION struct {
 	HThread     syscall.Handle
 	DwProcessId uint32
 	DwThreadId  uint32
-}
-
-type PROCESSENTRY32W struct {
-	DwSize              uint32
-	CntUsage            uint32
-	Th32ProcessID       uint32
-	Th32DefaultHeapID   uintptr
-	Th32ModuleID        uint32
-	CntThreads          uint32
-	Th32ParentProcessID uint32
-	PcPriClassBase      int32
-	DwFlags             uint32
-	SzExeFile           [260]uint16
 }
 
 type OPENFILENAMEW struct {
@@ -454,39 +436,38 @@ func saveCurrentState() {
 	saveConfig(cfg)
 }
 
-func getRunningDiscordPIDs() []uint32 {
-	hSnap, _, _ := procCreateToolhelp32Snapshot.Call(TH32CS_SNAPPROCESS, 0)
-	if hSnap == uintptr(syscall.InvalidHandle) || hSnap == 0 {
-		return nil
+// Check if Discord window exists without suspicious process scanning APIs
+func isDiscordWindowOpen() bool {
+	// Discord's main window class name in Electron
+	hwnd, _, _ := procFindWindowW.Call(
+		uintptr(unsafe.Pointer(utf16Ptr("Chrome_WidgetWin_1"))),
+		0,
+	)
+	if hwnd != 0 {
+		return true
 	}
-	defer procCloseHandle.Call(hSnap)
-
-	var pe PROCESSENTRY32W
-	pe.DwSize = uint32(unsafe.Sizeof(pe))
-
-	var pids []uint32
-	res, _, _ := procProcess32FirstW.Call(hSnap, uintptr(unsafe.Pointer(&pe)))
-	for res != 0 {
-		exeName := syscall.UTF16ToString(pe.SzExeFile[:])
-		if strings.EqualFold(exeName, "discord.exe") ||
-			strings.EqualFold(exeName, "discordcanary.exe") ||
-			strings.EqualFold(exeName, "discordptb.exe") ||
-			strings.EqualFold(exeName, "discorddevelopment.exe") {
-			pids = append(pids, pe.Th32ProcessID)
-		}
-		res, _, _ = procProcess32NextW.Call(hSnap, uintptr(unsafe.Pointer(&pe)))
-	}
-	return pids
+	// Fallback check
+	hwnd2, _, _ := procFindWindowW.Call(
+		0,
+		uintptr(unsafe.Pointer(utf16Ptr("Discord"))),
+	)
+	return hwnd2 != 0
 }
 
-func killDiscordProcesses(pids []uint32) {
-	for _, pid := range pids {
-		hProc, _, _ := procOpenProcess.Call(PROCESS_TERMINATE, 0, uintptr(pid))
-		if hProc != 0 && hProc != uintptr(syscall.InvalidHandle) {
-			procTerminateProcess.Call(hProc, 0)
-			procCloseHandle.Call(hProc)
-		}
-	}
+// Gracefully close Discord instances using Windows built-in taskkill utility
+func closeDiscordProcesses() {
+	cmd := exec.Command("taskkill", "/F", "/IM", "Discord.exe", "/T")
+	cmd.SysProcAttr = &syscall.SysProcAttr{CreationFlags: CREATE_NO_WINDOW}
+	_ = cmd.Run()
+
+	cmd2 := exec.Command("taskkill", "/F", "/IM", "DiscordCanary.exe", "/T")
+	cmd2.SysProcAttr = &syscall.SysProcAttr{CreationFlags: CREATE_NO_WINDOW}
+	_ = cmd2.Run()
+
+	cmd3 := exec.Command("taskkill", "/F", "/IM", "DiscordPTB.exe", "/T")
+	cmd3.SysProcAttr = &syscall.SysProcAttr{CreationFlags: CREATE_NO_WINDOW}
+	_ = cmd3.Run()
+
 	time.Sleep(350 * time.Millisecond)
 }
 
@@ -738,12 +719,11 @@ func launchDiscord(hwnd syscall.Handle) {
 	}
 
 	// 1. Check if Discord is currently running
-	runningPIDs := getRunningDiscordPIDs()
-	if len(runningPIDs) > 0 {
+	if isDiscordWindowOpen() {
 		msg := "O Discord já está em execução.\n\nPara aplicar as novas configurações de Proxy e WebRTC, o Discord precisa ser fechado e reiniciado.\n\nDeseja fechar o Discord agora e abri-lo com o proxy configurado?"
 		ans := showMessage(hwnd, msg, "Discord em Execução", MB_YESNO|MB_ICONQUESTION)
 		if ans == IDYES {
-			killDiscordProcesses(runningPIDs)
+			closeDiscordProcesses()
 		} else {
 			return
 		}
@@ -841,7 +821,6 @@ func drawCustomButton(dis *DRAWITEMSTRUCT, text string, isPrimary bool) {
 
 	r := rect
 	textPtr := utf16Ptr(text)
-	// Pass -1 (^uintptr(0)) so DrawTextW reads full null-terminated UTF-16 text without emoji surrogate pair truncation!
 	procDrawTextW.Call(
 		hdc,
 		uintptr(unsafe.Pointer(textPtr)),
@@ -1154,7 +1133,7 @@ func main() {
 	hLblPathTip := createControl("STATIC", "Detectado automaticamente no Registro do Windows / AppData.", 0, 35, 386, 510, 20, 0)
 	procSendMessageW.Call(uintptr(hLblPathTip), WM_SETFONT, hFontSub, 1)
 
-	// 5. Main Action Button: Left 20px, Width 540px (Right edge 560px -> 20px right margin!)
+	// 5. Main Action Button: Left 20px, Width 540px
 	createControl("BUTTON", "🚀  Abrir Discord", BS_OWNERDRAW|WS_TABSTOP, 20, 444, 540, 48, ID_BTN_LAUNCH)
 
 	procShowWindow.Call(uintptr(hMainWnd), SW_SHOW)
