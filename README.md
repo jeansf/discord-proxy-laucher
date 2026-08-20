@@ -3,7 +3,7 @@
 Aplicativo nativo para Windows 11 com o visual oficial do Discord (Dark Theme) que permite iniciar o Discord configurado com servidor de Proxy (SOCKS5/HTTP) e proteção contra vazamento de IP via WebRTC.
 
 <p align="center">
-  <img src="Captura%20de%20tela%202026-08-20%20140816.png" alt="Discord Proxy Launcher Preview" width="560"/>
+  <img src="screen_01.png" alt="Discord Proxy Launcher Preview" width="560"/>
 </p>
 
 ---

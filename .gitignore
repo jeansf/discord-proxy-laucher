@@ -1,7 +1,3 @@
 # Configuration files (prevent committing user proxy configs)
 *.config
 config.json
-
-# Screenshots (local only, do not commit)
-Captura*.png
-*.png.bak
