@@ -1,0 +1,46 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Install go-winres
+        run: go install github.com/tc-hib/go-winres@latest
+
+      - name: Generate Windows Resources (.syso with Icon & Manifest)
+        run: |
+          go-winres simply --arch amd64 --manifest gui --icon icon.ico --file-description "Discord Proxy Launcher" --product-name "Discord Proxy Launcher" --original-filename "DiscordProxyLauncher.exe"
+
+      - name: Build Windows Executable
+        run: |
+          GOOS=windows GOARCH=amd64 go build -ldflags="-H=windowsgui -s -w" -o DiscordProxyLauncher.exe .
+
+      - name: Create GitHub Release and Upload Asset
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Discord Proxy Launcher ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+          files: |
+            DiscordProxyLauncher.exe
+            icon.ico
+            icon.png
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
