@@ -2,5 +2,6 @@
 *.config
 config.json
 
-# Go build artifacts if needed (or keep exe tracked if desired)
-# DiscordProxyLauncher.exe
+# Screenshots (local only, do not commit)
+Captura*.png
+*.png.bak

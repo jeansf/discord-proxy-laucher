@@ -2,6 +2,10 @@
 
 Aplicativo nativo para Windows 11 com o visual oficial do Discord (Dark Theme) que permite iniciar o Discord configurado com servidor de Proxy (SOCKS5/HTTP) e proteção contra vazamento de IP via WebRTC.
 
+<p align="center">
+  <img src="Captura%20de%20tela%202026-08-20%20140816.png" alt="Discord Proxy Launcher Preview" width="560"/>
+</p>
+
 ---
 
 ## ✨ Recursos
@@ -77,8 +81,8 @@ O repositório possui um workflow automatizado em `.github/workflows/release.yml
 
 1. Crie e envie uma tag de versão:
    ```bash
-   git tag v1.0.0
-   git push origin v1.0.0
+   git tag v1.0.1
+   git push origin v1.0.1
    ```
 2. O GitHub Actions irá compilar automaticamente o binário e anexar o `DiscordProxyLauncher.exe` na página de Releases do repositório.
 
