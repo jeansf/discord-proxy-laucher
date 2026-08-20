@@ -23,7 +23,7 @@ Aplicativo nativo para Windows 11 com o visual oficial do Discord (Dark Theme) q
 
 ## 📥 Download
 
-Baixe o executável pronto na aba de **[Releases](https://github.com/jeansf/discord-proxy-laucher/releases)** do repositório:
+Baixe o executável pronto na aba de **[Releases](https://github.com/jeansf/discord-proxy-launcher/releases)** do repositório:
 * **`DiscordProxyLauncher.exe`** (Compatível com Windows 10 e Windows 11 64-bit)
 
 ---
