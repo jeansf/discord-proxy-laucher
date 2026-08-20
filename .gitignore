@@ -1,0 +1,6 @@
+# Configuration files (prevent committing user proxy configs)
+*.config
+config.json
+
+# Go build artifacts if needed (or keep exe tracked if desired)
+# DiscordProxyLauncher.exe
